@@ -97,7 +97,7 @@ void CloseExpiredPositions()
 bool IsNewBar(datetime &barOpenTime)
 {
    datetime times[];
-   int copied = CopyTime(_Symbol, _Period, 0, 1, times);
+   int copied = CopyTime(_Symbol, PERIOD_M1, 0, 1, times);
    if(copied != 1)
       return false;
 
@@ -132,6 +132,12 @@ void OpenSellOnNewBar()
 
 int OnInit()
 {
+   if(_Period != PERIOD_M1)
+   {
+      Print("Attach this EA to M1 timeframe only.");
+      return INIT_FAILED;
+   }
+
    if(!SymbolAllowed())
    {
       Print("EA disabled on symbol ", _Symbol, ". Allowed: ", InpAllowedSymbols);
@@ -142,10 +148,10 @@ int OnInit()
    trade.SetDeviationInPoints((ulong)InpSlippagePoints);
 
    datetime times[];
-   if(CopyTime(_Symbol, _Period, 0, 1, times) == 1)
+   if(CopyTime(_Symbol, PERIOD_M1, 0, 1, times) == 1)
       g_lastProcessedBarTime = times[0];
 
-   Print("CrashSellPerBarEA initialized on ", _Symbol, " timeframe ", EnumToString(_Period));
+   Print("CrashSellPerBarEA initialized on ", _Symbol, " timeframe M1.");
    return INIT_SUCCEEDED;
 }
 
