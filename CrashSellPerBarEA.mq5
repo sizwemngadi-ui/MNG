@@ -7,7 +7,7 @@
 input string InpAllowedSymbols        = "Crash 300 Index,Crash 500 Index";
 input double InpLots                  = 0.20;
 input uint   InpTakeProfitPoints      = 100;
-input int    InpMaxTradeMinutes       = 30;
+input int    InpMaxTradeSeconds       = 30;
 input int    InpSlippagePoints        = 50;
 input ulong  InpMagicNumber           = 30050001;
 input bool   InpAllowOnlyOnePosition  = false;
@@ -65,7 +65,7 @@ bool HasOpenSellForThisEA()
 
 void CloseExpiredPositions()
 {
-   if(InpMaxTradeMinutes <= 0)
+   if(InpMaxTradeSeconds <= 0)
       return;
 
    datetime now = TimeCurrent();
@@ -89,7 +89,7 @@ void CloseExpiredPositions()
          continue;
 
       long ageSeconds = (long)(now - openTime);
-      if(ageSeconds >= (long)InpMaxTradeMinutes * 60)
+      if(ageSeconds >= (long)InpMaxTradeSeconds)
          trade.PositionClose(ticket);
    }
 }
