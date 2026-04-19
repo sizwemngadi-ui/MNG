@@ -23,6 +23,13 @@ string Trim(const string value)
    return result;
 }
 
+string Lower(const string value)
+{
+   string result = value;
+   StringToLower(result);
+   return result;
+}
+
 bool SymbolAllowed()
 {
    string chunks[];
@@ -30,10 +37,15 @@ bool SymbolAllowed()
    if(count <= 0)
       return true;
 
-   string current = _Symbol;
+   string current = Lower(_Symbol);
    for(int i = 0; i < count; i++)
    {
-      if(current == Trim(chunks[i]))
+      string allowed = Lower(Trim(chunks[i]));
+      if(allowed == "")
+         continue;
+
+      // Support exact match and broker-specific suffix/prefix symbol names.
+      if(current == allowed || StringFind(current, allowed) >= 0)
          return true;
    }
 
@@ -132,17 +144,14 @@ void OpenSellOnNewBar()
 
 int OnInit()
 {
-   if(_Period != PERIOD_M1)
-   {
-      Print("Attach this EA to M1 timeframe only.");
-      return INIT_FAILED;
-   }
-
    if(!SymbolAllowed())
    {
       Print("EA disabled on symbol ", _Symbol, ". Allowed: ", InpAllowedSymbols);
       return INIT_FAILED;
    }
+
+   if(_Period != PERIOD_M1)
+      Print("Warning: chart timeframe is ", EnumToString(_Period), ". EA logic still uses M1 candles.");
 
    trade.SetExpertMagicNumber(InpMagicNumber);
    trade.SetDeviationInPoints((ulong)InpSlippagePoints);
@@ -150,6 +159,8 @@ int OnInit()
    datetime times[];
    if(CopyTime(_Symbol, PERIOD_M1, 0, 1, times) == 1)
       g_lastProcessedBarTime = times[0];
+   else
+      g_lastProcessedBarTime = 0;
 
    Print("CrashSellPerBarEA initialized on ", _Symbol, " timeframe M1.");
    return INIT_SUCCEEDED;
