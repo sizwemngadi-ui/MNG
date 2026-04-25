@@ -1,6 +1,6 @@
 #property strict
 #property version   "1.00"
-#property description "Alerts when ATR crosses downward through a configured level on M5."
+#property description "Alerts on downward ATR cross and displays current ATR on chart."
 
 input string            InpSymbol              = "Crash 300 Index";   // Symbol to monitor
 input ENUM_TIMEFRAMES   InpTimeframe           = PERIOD_M5;           // Timeframe to monitor
@@ -9,6 +9,7 @@ input double            InpATRTriggerLevel     = 3.300;               // Trigger
 input bool              InpEnablePushNotify    = true;                // Send mobile push notification
 input bool              InpEnablePopupAlert    = true;                // Show MT5 popup alert
 input bool              InpTriggerOnCrossOnly  = true;                // Alert only when crossing down
+input bool              InpDisplayAtrOnChart   = true;                // Show live ATR value on chart
 
 int      g_atrHandle = INVALID_HANDLE;
 datetime g_lastBarTime = 0;
@@ -50,6 +51,9 @@ void OnDeinit(const int reason)
 {
    if(g_atrHandle != INVALID_HANDLE)
       IndicatorRelease(g_atrHandle);
+
+   if(InpDisplayAtrOnChart)
+      Comment("");
 }
 
 void OnTick()
@@ -57,15 +61,6 @@ void OnTick()
    string symbolToUse = StringTrim(InpSymbol);
    if(symbolToUse == "")
       symbolToUse = _Symbol;
-
-   datetime currentBarTime = iTime(symbolToUse, InpTimeframe, 0);
-   if(currentBarTime == 0)
-      return;
-
-   // Evaluate once per bar to avoid repeated alerts on every tick.
-   if(currentBarTime == g_lastBarTime)
-      return;
-   g_lastBarTime = currentBarTime;
 
    double atrValues[];
    ArraySetAsSeries(atrValues, true);
@@ -77,6 +72,18 @@ void OnTick()
 
    double currentATR = atrValues[0];
    double previousATR = (ArraySize(atrValues) > 1 ? atrValues[1] : currentATR);
+
+   if(InpDisplayAtrOnChart)
+      UpdateAtrDisplay(symbolToUse, currentATR);
+
+   datetime currentBarTime = iTime(symbolToUse, InpTimeframe, 0);
+   if(currentBarTime == 0)
+      return;
+
+   // Evaluate alerts once per bar to avoid repeated notifications.
+   if(currentBarTime == g_lastBarTime)
+      return;
+   g_lastBarTime = currentBarTime;
 
    bool triggerNow = false;
    if(InpTriggerOnCrossOnly)
@@ -106,6 +113,15 @@ void SendAtrAlert(string symbolName, double atrValue)
       if(!SendNotification(message))
          PrintFormat("SendNotification failed. Error: %d", GetLastError());
    }
+}
+
+void UpdateAtrDisplay(string symbolName, double atrValue)
+{
+   string levelState = (atrValue <= InpATRTriggerLevel ? "Below/At trigger" : "Above trigger");
+   string chartText = StringFormat("ATR Monitor\nSymbol: %s\nTimeframe: %s\nATR(%d): %.3f\nTrigger: %.3f\nState: %s",
+                                   symbolName, EnumToString(InpTimeframe), InpATRPeriod,
+                                   atrValue, InpATRTriggerLevel, levelState);
+   Comment(chartText);
 }
 
 string StringTrim(string value)
