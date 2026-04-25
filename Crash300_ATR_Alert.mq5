@@ -1,6 +1,6 @@
 #property strict
 #property version   "1.00"
-#property description "Alerts when ATR reaches a configured level on M5."
+#property description "Alerts when ATR crosses downward through a configured level on M5."
 
 input string            InpSymbol              = "Crash 300 Index";   // Symbol to monitor
 input ENUM_TIMEFRAMES   InpTimeframe           = PERIOD_M5;           // Timeframe to monitor
@@ -8,11 +8,11 @@ input int               InpATRPeriod           = 14;                  // ATR per
 input double            InpATRTriggerLevel     = 3.300;               // Trigger level
 input bool              InpEnablePushNotify    = true;                // Send mobile push notification
 input bool              InpEnablePopupAlert    = true;                // Show MT5 popup alert
-input bool              InpTriggerOnCrossOnly  = true;                // Alert only when crossing up
+input bool              InpTriggerOnCrossOnly  = true;                // Alert only when crossing down
 
 int      g_atrHandle = INVALID_HANDLE;
 datetime g_lastBarTime = 0;
-bool     g_levelAlreadyReached = false;
+bool     g_levelAlreadyBelow = false;
 
 int OnInit()
 {
@@ -38,7 +38,7 @@ int OnInit()
    double atrValues[];
    ArraySetAsSeries(atrValues, true);
    if(CopyBuffer(g_atrHandle, 0, 0, 1, atrValues) == 1)
-      g_levelAlreadyReached = (atrValues[0] >= InpATRTriggerLevel);
+      g_levelAlreadyBelow = (atrValues[0] <= InpATRTriggerLevel);
 
    PrintFormat("ATR alert initialized for %s, TF=%d, period=%d, trigger=%.3f",
                symbolToUse, InpTimeframe, InpATRPeriod, InpATRTriggerLevel);
@@ -80,20 +80,20 @@ void OnTick()
 
    bool triggerNow = false;
    if(InpTriggerOnCrossOnly)
-      triggerNow = (previousATR < InpATRTriggerLevel && currentATR >= InpATRTriggerLevel);
+      triggerNow = (previousATR > InpATRTriggerLevel && currentATR <= InpATRTriggerLevel);
    else
-      triggerNow = (currentATR >= InpATRTriggerLevel && !g_levelAlreadyReached);
+      triggerNow = (currentATR <= InpATRTriggerLevel && !g_levelAlreadyBelow);
 
    if(triggerNow)
       SendAtrAlert(symbolToUse, currentATR);
 
-   // Reset state if ATR goes back below level; enables next cycle alert.
-   g_levelAlreadyReached = (currentATR >= InpATRTriggerLevel);
+   // Reset state if ATR goes back above level; enables next cycle alert.
+   g_levelAlreadyBelow = (currentATR <= InpATRTriggerLevel);
 }
 
 void SendAtrAlert(string symbolName, double atrValue)
 {
-   string message = StringFormat("%s ATR( %d ) on M5 reached %.3f (current: %.3f)",
+   string message = StringFormat("%s ATR( %d ) on M5 crossed down to %.3f (current: %.3f)",
                                  symbolName, InpATRPeriod, InpATRTriggerLevel, atrValue);
 
    Print(message);
