@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.00"
+#property version   "1.01"
 #property description "Alerts on downward ATR cross and displays current ATR on chart."
 
 input string            InpSymbol              = "Crash 300 Index";   // Symbol to monitor
@@ -10,6 +10,10 @@ input bool              InpEnablePushNotify    = true;                // Send mo
 input bool              InpEnablePopupAlert    = true;                // Show MT5 popup alert
 input bool              InpTriggerOnCrossOnly  = true;                // Alert only when crossing down
 input bool              InpDisplayAtrOnChart   = true;                // Show live ATR value on chart
+input bool              InpDrawVerticalLine    = true;                // Draw vertical line when alert triggers
+input color             InpLineColor           = clrRed;              // Vertical line color
+input ENUM_LINE_STYLE   InpLineStyle           = STYLE_SOLID;         // Vertical line style
+input int               InpLineWidth           = 1;                   // Vertical line width
 
 int      g_atrHandle = INVALID_HANDLE;
 datetime g_lastBarTime = 0;
@@ -92,13 +96,13 @@ void OnTick()
       triggerNow = (currentATR <= InpATRTriggerLevel && !g_levelAlreadyBelow);
 
    if(triggerNow)
-      SendAtrAlert(symbolToUse, currentATR);
+      SendAtrAlert(symbolToUse, currentATR, currentBarTime);
 
    // Reset state if ATR goes back above level; enables next cycle alert.
    g_levelAlreadyBelow = (currentATR <= InpATRTriggerLevel);
 }
 
-void SendAtrAlert(string symbolName, double atrValue)
+void SendAtrAlert(string symbolName, double atrValue, datetime triggerTime)
 {
    string message = StringFormat("%s ATR( %d ) on M5 crossed down to %.3f (current: %.3f)",
                                  symbolName, InpATRPeriod, InpATRTriggerLevel, atrValue);
@@ -113,6 +117,9 @@ void SendAtrAlert(string symbolName, double atrValue)
       if(!SendNotification(message))
          PrintFormat("SendNotification failed. Error: %d", GetLastError());
    }
+
+   if(InpDrawVerticalLine)
+      DrawTriggerLine(triggerTime, atrValue);
 }
 
 void UpdateAtrDisplay(string symbolName, double atrValue)
@@ -122,6 +129,27 @@ void UpdateAtrDisplay(string symbolName, double atrValue)
                                    symbolName, EnumToString(InpTimeframe), InpATRPeriod,
                                    atrValue, InpATRTriggerLevel, levelState);
    Comment(chartText);
+}
+
+void DrawTriggerLine(datetime triggerTime, double atrValue)
+{
+   string objectName = StringFormat("ATR_DownCross_%I64d", (long)triggerTime);
+
+   if(ObjectFind(0, objectName) >= 0)
+      return;
+
+   if(!ObjectCreate(0, objectName, OBJ_VLINE, 0, triggerTime, 0))
+   {
+      PrintFormat("Failed to create vertical line. Error: %d", GetLastError());
+      return;
+   }
+
+   ObjectSetInteger(0, objectName, OBJPROP_COLOR, InpLineColor);
+   ObjectSetInteger(0, objectName, OBJPROP_STYLE, InpLineStyle);
+   ObjectSetInteger(0, objectName, OBJPROP_WIDTH, InpLineWidth);
+   ObjectSetInteger(0, objectName, OBJPROP_BACK, false);
+   ObjectSetInteger(0, objectName, OBJPROP_SELECTABLE, true);
+   ObjectSetString(0, objectName, OBJPROP_TEXT, StringFormat("ATR %.3f", atrValue));
 }
 
 string StringTrim(string value)
