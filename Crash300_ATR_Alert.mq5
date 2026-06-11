@@ -1,6 +1,6 @@
 #property strict
-#property version   "1.01"
-#property description "Alerts on downward ATR cross and displays current ATR on chart."
+#property version   "1.02"
+#property description "Alerts on downward ATR cross, shows ATR, and runs an alert timer."
 
 input string            InpSymbol              = "Crash 300 Index";   // Symbol to monitor
 input ENUM_TIMEFRAMES   InpTimeframe           = PERIOD_M5;           // Timeframe to monitor
@@ -18,6 +18,8 @@ input int               InpLineWidth           = 1;                   // Vertica
 int      g_atrHandle = INVALID_HANDLE;
 datetime g_lastBarTime = 0;
 bool     g_levelAlreadyBelow = false;
+datetime g_lastAlertTime = 0;
+double   g_lastAlertAtr = 0.0;
 
 int OnInit()
 {
@@ -48,16 +50,38 @@ int OnInit()
    PrintFormat("ATR alert initialized for %s, TF=%d, period=%d, trigger=%.3f",
                symbolToUse, InpTimeframe, InpATRPeriod, InpATRTriggerLevel);
 
+   // Refresh on-chart timer display every second, even on quiet ticks.
+   EventSetTimer(1);
+
    return(INIT_SUCCEEDED);
 }
 
 void OnDeinit(const int reason)
 {
+   EventKillTimer();
+
    if(g_atrHandle != INVALID_HANDLE)
       IndicatorRelease(g_atrHandle);
 
    if(InpDisplayAtrOnChart)
       Comment("");
+}
+
+void OnTimer()
+{
+   if(!InpDisplayAtrOnChart || g_atrHandle == INVALID_HANDLE)
+      return;
+
+   string symbolToUse = StringTrim(InpSymbol);
+   if(symbolToUse == "")
+      symbolToUse = _Symbol;
+
+   double atrValues[];
+   ArraySetAsSeries(atrValues, true);
+   if(CopyBuffer(g_atrHandle, 0, 0, 1, atrValues) < 1)
+      return;
+
+   UpdateAtrDisplay(symbolToUse, atrValues[0]);
 }
 
 void OnTick()
@@ -118,16 +142,32 @@ void SendAtrAlert(string symbolName, double atrValue, datetime triggerTime)
          PrintFormat("SendNotification failed. Error: %d", GetLastError());
    }
 
+   g_lastAlertTime = TimeLocal();
+   g_lastAlertAtr = atrValue;
+
    if(InpDrawVerticalLine)
       DrawTriggerLine(triggerTime, atrValue);
+
+   if(InpDisplayAtrOnChart)
+      UpdateAtrDisplay(symbolName, atrValue);
 }
 
 void UpdateAtrDisplay(string symbolName, double atrValue)
 {
    string levelState = (atrValue <= InpATRTriggerLevel ? "Below/At trigger" : "Above trigger");
-   string chartText = StringFormat("ATR Monitor\nSymbol: %s\nTimeframe: %s\nATR(%d): %.3f\nTrigger: %.3f\nState: %s",
+   string lastAlertAtrText = "N/A";
+   string timerText = "Not started";
+
+   if(g_lastAlertTime > 0)
+   {
+      int elapsedSeconds = (int)MathMax(0, TimeLocal() - g_lastAlertTime);
+      lastAlertAtrText = StringFormat("%.3f", g_lastAlertAtr);
+      timerText = FormatElapsedTime(elapsedSeconds);
+   }
+
+   string chartText = StringFormat("ATR Monitor\nSymbol: %s\nTimeframe: %s\nATR(%d): %.3f\nTrigger: %.3f\nState: %s\nLast alert ATR: %s\nTimer since alert: %s",
                                    symbolName, EnumToString(InpTimeframe), InpATRPeriod,
-                                   atrValue, InpATRTriggerLevel, levelState);
+                                   atrValue, InpATRTriggerLevel, levelState, lastAlertAtrText, timerText);
    Comment(chartText);
 }
 
@@ -150,6 +190,14 @@ void DrawTriggerLine(datetime triggerTime, double atrValue)
    ObjectSetInteger(0, objectName, OBJPROP_BACK, false);
    ObjectSetInteger(0, objectName, OBJPROP_SELECTABLE, true);
    ObjectSetString(0, objectName, OBJPROP_TEXT, StringFormat("ATR %.3f", atrValue));
+}
+
+string FormatElapsedTime(int totalSeconds)
+{
+   int hours = totalSeconds / 3600;
+   int minutes = (totalSeconds % 3600) / 60;
+   int seconds = totalSeconds % 60;
+   return StringFormat("%02d:%02d:%02d", hours, minutes, seconds);
 }
 
 string StringTrim(string value)
