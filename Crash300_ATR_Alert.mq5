@@ -1,6 +1,6 @@
 #property strict
-#property version   "1.03"
-#property description "Alerts on downward ATR cross and shows timer only while ATR is below trigger."
+#property version   "1.04"
+#property description "Alerts on downward ATR cross and timer auto-hides when state is Above trigger."
 
 input string            InpSymbol              = "Crash 300 Index";   // Symbol to monitor
 input ENUM_TIMEFRAMES   InpTimeframe           = PERIOD_M5;           // Timeframe to monitor
@@ -82,6 +82,9 @@ void OnTimer()
    if(CopyBuffer(g_atrHandle, 0, 0, 1, atrValues) < 1)
       return;
 
+   if(g_timerActive && atrValues[0] > InpATRTriggerLevel)
+      StopTimerState();
+
    UpdateAtrDisplay(symbolToUse, atrValues[0]);
 }
 
@@ -102,6 +105,9 @@ void OnTick()
    double currentATR = atrValues[0];
    double previousATR = (ArraySize(atrValues) > 1 ? atrValues[1] : currentATR);
 
+   if(g_timerActive && currentATR > InpATRTriggerLevel)
+      StopTimerState();
+
    if(InpDisplayAtrOnChart)
       UpdateAtrDisplay(symbolToUse, currentATR);
 
@@ -115,7 +121,6 @@ void OnTick()
    g_lastBarTime = currentBarTime;
 
    bool triggerNow = false;
-   bool crossedUp = (previousATR <= InpATRTriggerLevel && currentATR > InpATRTriggerLevel);
    if(InpTriggerOnCrossOnly)
       triggerNow = (previousATR > InpATRTriggerLevel && currentATR <= InpATRTriggerLevel);
    else
@@ -123,15 +128,6 @@ void OnTick()
 
    if(triggerNow)
       SendAtrAlert(symbolToUse, currentATR, currentBarTime);
-
-   if(crossedUp && g_timerActive)
-   {
-      g_timerActive = false;
-      g_timerStartTime = 0;
-      g_timerStartAtr = 0.0;
-      if(InpDisplayAtrOnChart)
-         UpdateAtrDisplay(symbolToUse, currentATR);
-   }
 
    // Reset state if ATR goes back above level; enables next cycle alert.
    g_levelAlreadyBelow = (currentATR <= InpATRTriggerLevel);
@@ -208,6 +204,13 @@ string FormatElapsedTime(int totalSeconds)
    int minutes = (totalSeconds % 3600) / 60;
    int seconds = totalSeconds % 60;
    return StringFormat("%02d:%02d:%02d", hours, minutes, seconds);
+}
+
+void StopTimerState()
+{
+   g_timerActive = false;
+   g_timerStartTime = 0;
+   g_timerStartAtr = 0.0;
 }
 
 string StringTrim(string value)
