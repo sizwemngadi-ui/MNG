@@ -1,6 +1,6 @@
 #property strict
-#property version   "1.02"
-#property description "Alerts on downward ATR cross, shows ATR, and runs an alert timer."
+#property version   "1.03"
+#property description "Alerts on downward ATR cross and shows timer only while ATR is below trigger."
 
 input string            InpSymbol              = "Crash 300 Index";   // Symbol to monitor
 input ENUM_TIMEFRAMES   InpTimeframe           = PERIOD_M5;           // Timeframe to monitor
@@ -18,8 +18,9 @@ input int               InpLineWidth           = 1;                   // Vertica
 int      g_atrHandle = INVALID_HANDLE;
 datetime g_lastBarTime = 0;
 bool     g_levelAlreadyBelow = false;
-datetime g_lastAlertTime = 0;
-double   g_lastAlertAtr = 0.0;
+bool     g_timerActive = false;
+datetime g_timerStartTime = 0;
+double   g_timerStartAtr = 0.0;
 
 int OnInit()
 {
@@ -114,6 +115,7 @@ void OnTick()
    g_lastBarTime = currentBarTime;
 
    bool triggerNow = false;
+   bool crossedUp = (previousATR <= InpATRTriggerLevel && currentATR > InpATRTriggerLevel);
    if(InpTriggerOnCrossOnly)
       triggerNow = (previousATR > InpATRTriggerLevel && currentATR <= InpATRTriggerLevel);
    else
@@ -121,6 +123,15 @@ void OnTick()
 
    if(triggerNow)
       SendAtrAlert(symbolToUse, currentATR, currentBarTime);
+
+   if(crossedUp && g_timerActive)
+   {
+      g_timerActive = false;
+      g_timerStartTime = 0;
+      g_timerStartAtr = 0.0;
+      if(InpDisplayAtrOnChart)
+         UpdateAtrDisplay(symbolToUse, currentATR);
+   }
 
    // Reset state if ATR goes back above level; enables next cycle alert.
    g_levelAlreadyBelow = (currentATR <= InpATRTriggerLevel);
@@ -142,8 +153,9 @@ void SendAtrAlert(string symbolName, double atrValue, datetime triggerTime)
          PrintFormat("SendNotification failed. Error: %d", GetLastError());
    }
 
-   g_lastAlertTime = TimeLocal();
-   g_lastAlertAtr = atrValue;
+   g_timerActive = true;
+   g_timerStartTime = TimeLocal();
+   g_timerStartAtr = atrValue;
 
    if(InpDrawVerticalLine)
       DrawTriggerLine(triggerTime, atrValue);
@@ -155,19 +167,17 @@ void SendAtrAlert(string symbolName, double atrValue, datetime triggerTime)
 void UpdateAtrDisplay(string symbolName, double atrValue)
 {
    string levelState = (atrValue <= InpATRTriggerLevel ? "Below/At trigger" : "Above trigger");
-   string lastAlertAtrText = "N/A";
-   string timerText = "Not started";
+   string chartText = StringFormat("ATR Monitor\nSymbol: %s\nTimeframe: %s\nATR(%d): %.3f\nTrigger: %.3f\nState: %s",
+                                   symbolName, EnumToString(InpTimeframe), InpATRPeriod,
+                                   atrValue, InpATRTriggerLevel, levelState);
 
-   if(g_lastAlertTime > 0)
+   if(g_timerActive && g_timerStartTime > 0)
    {
-      int elapsedSeconds = (int)MathMax(0, TimeLocal() - g_lastAlertTime);
-      lastAlertAtrText = StringFormat("%.3f", g_lastAlertAtr);
-      timerText = FormatElapsedTime(elapsedSeconds);
+      int elapsedSeconds = (int)MathMax(0, TimeLocal() - g_timerStartTime);
+      chartText += StringFormat("\nTimer below trigger: %s\nTimer start ATR: %.3f",
+                                FormatElapsedTime(elapsedSeconds), g_timerStartAtr);
    }
 
-   string chartText = StringFormat("ATR Monitor\nSymbol: %s\nTimeframe: %s\nATR(%d): %.3f\nTrigger: %.3f\nState: %s\nLast alert ATR: %s\nTimer since alert: %s",
-                                   symbolName, EnumToString(InpTimeframe), InpATRPeriod,
-                                   atrValue, InpATRTriggerLevel, levelState, lastAlertAtrText, timerText);
    Comment(chartText);
 }
 
