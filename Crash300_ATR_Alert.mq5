@@ -1,6 +1,6 @@
 #property strict
-#property version   "1.04"
-#property description "Alerts on downward ATR cross and timer auto-hides when state is Above trigger."
+#property version   "1.05"
+#property description "ATR down-cross alert with timer and vertical line."
 
 input string            InpSymbol              = "Crash 300 Index";   // Symbol to monitor
 input ENUM_TIMEFRAMES   InpTimeframe           = PERIOD_M5;           // Timeframe to monitor
@@ -42,7 +42,6 @@ int OnInit()
       return(INIT_FAILED);
    }
 
-   // Prime state from latest ATR value to prevent false first alert.
    double atrValues[];
    ArraySetAsSeries(atrValues, true);
    if(CopyBuffer(g_atrHandle, 0, 0, 1, atrValues) == 1)
@@ -51,9 +50,7 @@ int OnInit()
    PrintFormat("ATR alert initialized for %s, TF=%d, period=%d, trigger=%.3f",
                symbolToUse, InpTimeframe, InpATRPeriod, InpATRTriggerLevel);
 
-   // Refresh on-chart timer display every second, even on quiet ticks.
    EventSetTimer(1);
-
    return(INIT_SUCCEEDED);
 }
 
@@ -82,10 +79,11 @@ void OnTimer()
    if(CopyBuffer(g_atrHandle, 0, 0, 1, atrValues) < 1)
       return;
 
-   if(g_timerActive && atrValues[0] > InpATRTriggerLevel)
+   double currentATR = atrValues[0];
+   if(g_timerActive && currentATR > InpATRTriggerLevel)
       StopTimerState();
 
-   UpdateAtrDisplay(symbolToUse, atrValues[0]);
+   UpdateAtrDisplay(symbolToUse, currentATR);
 }
 
 void OnTick()
@@ -115,7 +113,6 @@ void OnTick()
    if(currentBarTime == 0)
       return;
 
-   // Evaluate alerts once per bar to avoid repeated notifications.
    if(currentBarTime == g_lastBarTime)
       return;
    g_lastBarTime = currentBarTime;
@@ -129,15 +126,14 @@ void OnTick()
    if(triggerNow)
       SendAtrAlert(symbolToUse, currentATR, currentBarTime);
 
-   // Reset state if ATR goes back above level; enables next cycle alert.
    g_levelAlreadyBelow = (currentATR <= InpATRTriggerLevel);
 }
 
 void SendAtrAlert(string symbolName, double atrValue, datetime triggerTime)
 {
-   string message = StringFormat("%s ATR( %d ) on M5 crossed down to %.3f (current: %.3f)",
-                                 symbolName, InpATRPeriod, InpATRTriggerLevel, atrValue);
-
+   string message = StringFormat("%s ATR(%d) on %s crossed down to %.3f (current: %.3f)",
+                                 symbolName, InpATRPeriod, EnumToString(InpTimeframe),
+                                 InpATRTriggerLevel, atrValue);
    Print(message);
 
    if(InpEnablePopupAlert)
@@ -163,9 +159,10 @@ void SendAtrAlert(string symbolName, double atrValue, datetime triggerTime)
 void UpdateAtrDisplay(string symbolName, double atrValue)
 {
    string levelState = (atrValue <= InpATRTriggerLevel ? "Below/At trigger" : "Above trigger");
-   string chartText = StringFormat("ATR Monitor\nSymbol: %s\nTimeframe: %s\nATR(%d): %.3f\nTrigger: %.3f\nState: %s",
-                                   symbolName, EnumToString(InpTimeframe), InpATRPeriod,
-                                   atrValue, InpATRTriggerLevel, levelState);
+   string chartText = StringFormat(
+      "ATR Monitor\nSymbol: %s\nTimeframe: %s\nATR(%d): %.3f\nTrigger: %.3f\nState: %s",
+      symbolName, EnumToString(InpTimeframe), InpATRPeriod, atrValue, InpATRTriggerLevel, levelState
+   );
 
    if(g_timerActive && g_timerStartTime > 0)
    {
@@ -180,7 +177,6 @@ void UpdateAtrDisplay(string symbolName, double atrValue)
 void DrawTriggerLine(datetime triggerTime, double atrValue)
 {
    string objectName = StringFormat("ATR_DownCross_%I64d", (long)triggerTime);
-
    if(ObjectFind(0, objectName) >= 0)
       return;
 
