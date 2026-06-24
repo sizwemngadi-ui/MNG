@@ -103,7 +103,6 @@ int OnInit()
 
 void OnDeinit(const int reason)
 {
-   (void)reason;
    ObjectDelete(0, g_label_name);
 }
 
@@ -118,16 +117,6 @@ int OnCalculate(const int rates_total,
                 const long &volume[],
                 const int &spread[])
 {
-   (void)prev_calculated;
-   (void)time;
-   (void)open;
-   (void)high;
-   (void)low;
-   (void)close;
-   (void)tick_volume;
-   (void)volume;
-   (void)spread;
-
    MqlTick tick;
    datetime current_bar_open_time = iTime(_Symbol, _Period, 0);
 
