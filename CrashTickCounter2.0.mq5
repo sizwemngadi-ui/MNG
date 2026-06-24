@@ -1,5 +1,5 @@
 #property copyright "Cursor"
-#property version   "1.10"
+#property version   "2.00"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
@@ -12,7 +12,7 @@ input int LabelFontSize = 12;
 input string LabelFont = "Consolas";
 input int DropThresholdPoints = 100;
 
-string g_label_name = "CrashTickCounterLabel";
+string g_label_name = "CrashTickCounter2_0Label";
 long g_total_ticks = 0;
 long g_current_bar_ticks = 0;
 long g_ticks_since_last_drop = 0;
@@ -55,7 +55,7 @@ void UpdateDisplay()
    const string last_drop_time_text =
       (g_last_drop_time > 0) ? TimeToString(g_last_drop_time, TIME_DATE | TIME_SECONDS) : "N/A";
    const string text =
-      "Crash Tick Counter\n"
+      "CrashTickCounter2.0\n"
       + "Symbol: " + _Symbol + "\n"
       + "Timeframe: " + TimeframeToString((ENUM_TIMEFRAMES)_Period) + "\n"
       + "Ticks since last drop: " + (string)g_ticks_since_last_drop + "\n"
@@ -78,6 +78,8 @@ int OnInit()
 {
    MqlTick tick;
    EnsureLabel();
+   IndicatorSetString(INDICATOR_SHORTNAME, "CrashTickCounter2.0");
+
    g_current_bar_open_time = iTime(_Symbol, _Period, 0);
    g_total_ticks = 0;
    g_current_bar_ticks = 0;
