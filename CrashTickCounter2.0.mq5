@@ -1,5 +1,5 @@
 #property copyright "Cursor"
-#property version   "2.00"
+#property version   "2.01"
 #property strict
 #property indicator_chart_window
 #property indicator_plots 0
@@ -23,6 +23,7 @@ double g_last_drop_points = 0.0;
 double g_previous_bid = 0.0;
 bool g_initialized = false;
 bool g_has_previous_tick = false;
+const ENUM_TIMEFRAMES COUNTER_TIMEFRAME = PERIOD_M1;
 
 string TimeframeToString(const ENUM_TIMEFRAMES timeframe)
 {
@@ -57,7 +58,7 @@ void UpdateDisplay()
    const string text =
       "CrashTickCounter2.0\n"
       + "Symbol: " + _Symbol + "\n"
-      + "Timeframe: " + TimeframeToString((ENUM_TIMEFRAMES)_Period) + "\n"
+      + "Timeframe: " + TimeframeToString(COUNTER_TIMEFRAME) + "\n"
       + "Ticks since last drop: " + (string)g_ticks_since_last_drop + "\n"
       + "Drop threshold (points): " + (string)DropThresholdPoints + "\n"
       + "Drop events: " + (string)g_drop_events + "\n"
@@ -80,7 +81,7 @@ int OnInit()
    EnsureLabel();
    IndicatorSetString(INDICATOR_SHORTNAME, "CrashTickCounter2.0");
 
-   g_current_bar_open_time = iTime(_Symbol, _Period, 0);
+   g_current_bar_open_time = iTime(_Symbol, COUNTER_TIMEFRAME, 0);
    g_total_ticks = 0;
    g_current_bar_ticks = 0;
    g_ticks_since_last_drop = 0;
@@ -118,7 +119,7 @@ int OnCalculate(const int rates_total,
                 const int &spread[])
 {
    MqlTick tick;
-   datetime current_bar_open_time = iTime(_Symbol, _Period, 0);
+   datetime current_bar_open_time = iTime(_Symbol, COUNTER_TIMEFRAME, 0);
 
    if(!SymbolInfoTick(_Symbol, tick))
       return rates_total;
