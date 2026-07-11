@@ -1,6 +1,6 @@
 #property strict
-#property version   "1.05"
-#property description "Alerts on ATR trigger cross in both directions and shows timer while ATR stays below trigger."
+#property version   "1.06"
+#property description "Alerts on upward ATR trigger cross and shows timer while ATR stays below trigger."
 
 input string            InpSymbol              = "Crash 300 Index";   // Symbol to monitor
 input ENUM_TIMEFRAMES   InpTimeframe           = PERIOD_M5;           // Timeframe to monitor
@@ -8,18 +8,12 @@ input int               InpATRPeriod           = 14;                  // ATR per
 input double            InpATRTriggerLevel     = 3.300;               // Trigger level
 input bool              InpEnablePushNotify    = true;                // Send mobile push notification
 input bool              InpEnablePopupAlert    = true;                // Show MT5 popup alert
-input bool              InpTriggerOnCrossOnly  = true;                // Alert on trigger transitions only
+input bool              InpTriggerOnCrossOnly  = true;                // Alert only when crossing up
 input bool              InpDisplayAtrOnChart   = true;                // Show live ATR value on chart
 input bool              InpDrawVerticalLine    = true;                // Draw vertical line when alert triggers
 input color             InpLineColor           = clrRed;              // Vertical line color
 input ENUM_LINE_STYLE   InpLineStyle           = STYLE_SOLID;         // Vertical line style
 input int               InpLineWidth           = 1;                   // Vertical line width
-
-enum AlertDirection
-{
-   ALERT_CROSS_DOWN = -1,
-   ALERT_CROSS_UP   = 1
-};
 
 int      g_atrHandle = INVALID_HANDLE;
 datetime g_lastBarTime = 0;
@@ -122,12 +116,12 @@ void OnTick()
    bool crossedDown = (previousATR > InpATRTriggerLevel && currentATR <= InpATRTriggerLevel);
    bool crossedUp = (previousATR <= InpATRTriggerLevel && currentATR > InpATRTriggerLevel);
 
-   bool triggerDown = false;
+   bool enteredBelow = false;
    bool triggerUp = false;
 
    if(InpTriggerOnCrossOnly)
    {
-      triggerDown = crossedDown;
+      enteredBelow = crossedDown;
       triggerUp = crossedUp;
    }
    else
@@ -135,26 +129,33 @@ void OnTick()
       bool isBelowNow = (currentATR <= InpATRTriggerLevel);
       bool wasBelow = g_levelAlreadyBelow;
 
-      triggerDown = (isBelowNow && !wasBelow);
+      enteredBelow = (isBelowNow && !wasBelow);
       triggerUp = (!isBelowNow && wasBelow);
    }
 
-   if(triggerDown)
-      SendAtrAlert(symbolToUse, currentATR, currentBarTime, ALERT_CROSS_DOWN);
+   // Keep timer behavior while below trigger, without sending a down alert.
+   if(enteredBelow)
+   {
+      g_timerActive = true;
+      g_timerStartTime = TimeLocal();
+      g_timerStartAtr = currentATR;
+
+      if(InpDisplayAtrOnChart)
+         UpdateAtrDisplay(symbolToUse, currentATR);
+   }
 
    if(triggerUp)
-      SendAtrAlert(symbolToUse, currentATR, currentBarTime, ALERT_CROSS_UP);
+      SendAtrAlert(symbolToUse, currentATR, currentBarTime);
 
    // Persist level state to detect next transition.
    g_levelAlreadyBelow = (currentATR <= InpATRTriggerLevel);
 }
 
-void SendAtrAlert(string symbolName, double atrValue, datetime triggerTime, AlertDirection direction)
+void SendAtrAlert(string symbolName, double atrValue, datetime triggerTime)
 {
-   string directionText = (direction == ALERT_CROSS_DOWN ? "down through" : "up through");
-   string message = StringFormat("%s ATR(%d) on %s crossed %s %.3f (current: %.3f)",
+   string message = StringFormat("%s ATR(%d) on %s crossed up through %.3f (current: %.3f)",
                                  symbolName, InpATRPeriod, EnumToString(InpTimeframe),
-                                 directionText, InpATRTriggerLevel, atrValue);
+                                 InpATRTriggerLevel, atrValue);
 
    Print(message);
 
@@ -167,21 +168,13 @@ void SendAtrAlert(string symbolName, double atrValue, datetime triggerTime, Aler
          PrintFormat("SendNotification failed. Error: %d", GetLastError());
    }
 
-   if(direction == ALERT_CROSS_DOWN)
-   {
-      g_timerActive = true;
-      g_timerStartTime = TimeLocal();
-      g_timerStartAtr = atrValue;
-   }
-   else
-   {
-      g_timerActive = false;
-      g_timerStartTime = 0;
-      g_timerStartAtr = 0.0;
-   }
+   // Up-cross ends the below-trigger timer window.
+   g_timerActive = false;
+   g_timerStartTime = 0;
+   g_timerStartAtr = 0.0;
 
    if(InpDrawVerticalLine)
-      DrawTriggerLine(triggerTime, atrValue, direction);
+      DrawTriggerLine(triggerTime, atrValue);
 
    if(InpDisplayAtrOnChart)
       UpdateAtrDisplay(symbolName, atrValue);
@@ -204,10 +197,9 @@ void UpdateAtrDisplay(string symbolName, double atrValue)
    Comment(chartText);
 }
 
-void DrawTriggerLine(datetime triggerTime, double atrValue, AlertDirection direction)
+void DrawTriggerLine(datetime triggerTime, double atrValue)
 {
-   string directionSuffix = (direction == ALERT_CROSS_DOWN ? "DownCross" : "UpCross");
-   string objectName = StringFormat("ATR_%s_%I64d", directionSuffix, (long)triggerTime);
+   string objectName = StringFormat("ATR_UpCross_%I64d", (long)triggerTime);
    if(ObjectFind(0, objectName) >= 0)
       return;
 
