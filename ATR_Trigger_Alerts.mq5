@@ -1,6 +1,6 @@
 #property strict
-#property version   "1.04"
-#property description "Alerts on ATR trigger cross (down and up) and shows timer while ATR stays below trigger."
+#property version   "1.05"
+#property description "Alerts on ATR trigger cross in both directions and shows timer while ATR stays below trigger."
 
 input string            InpSymbol              = "Crash 300 Index";   // Symbol to monitor
 input ENUM_TIMEFRAMES   InpTimeframe           = PERIOD_M5;           // Timeframe to monitor
@@ -151,7 +151,7 @@ void OnTick()
 
 void SendAtrAlert(string symbolName, double atrValue, datetime triggerTime, AlertDirection direction)
 {
-   string directionText = (direction == ALERT_CROSS_DOWN ? "down to/below" : "up above");
+   string directionText = (direction == ALERT_CROSS_DOWN ? "down through" : "up through");
    string message = StringFormat("%s ATR(%d) on %s crossed %s %.3f (current: %.3f)",
                                  symbolName, InpATRPeriod, EnumToString(InpTimeframe),
                                  directionText, InpATRTriggerLevel, atrValue);
