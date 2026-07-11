@@ -5,6 +5,12 @@
 input int               ATR_Period        = 14;
 input ENUM_TIMEFRAMES   ATR_Timeframe     = PERIOD_CURRENT;
 input double            ATR_Trigger       = 0.00100;
+input bool              Show_ATR_Display  = true;
+input color             Display_Color     = clrWhite;
+input int               Display_Font_Size = 10;
+input ENUM_BASE_CORNER  Display_Corner    = CORNER_LEFT_UPPER;
+input int               Display_X_Offset  = 10;
+input int               Display_Y_Offset  = 20;
 input color             Line_Color        = clrLime;
 input ENUM_LINE_STYLE   Line_Style        = STYLE_SOLID;
 input int               Line_Width        = 1;
@@ -15,6 +21,7 @@ input string            Sound_File        = "alert.wav";
 int      g_atr_handle            = INVALID_HANDLE;
 datetime g_last_bar_open_time    = 0;
 int      g_atr_timeframe         = PERIOD_CURRENT;
+string   g_display_label_name    = "ATR_Value_Display";
 
 int OnInit()
 {
@@ -32,6 +39,8 @@ int OnInit()
 
 void OnDeinit(const int reason)
 {
+   ObjectDelete(0, g_display_label_name);
+
    if(g_atr_handle != INVALID_HANDLE)
    {
       IndicatorRelease(g_atr_handle);
@@ -43,6 +52,12 @@ void OnTick()
 {
    if(g_atr_handle == INVALID_HANDLE)
       return;
+
+   double live_atr_buffer[1];
+   ArraySetAsSeries(live_atr_buffer, true);
+   int live_copied = CopyBuffer(g_atr_handle, 0, 0, 1, live_atr_buffer);
+   if(live_copied == 1)
+      UpdateAtrDisplay(live_atr_buffer[0]);
 
    datetime bar_open_time = iTime(_Symbol, (ENUM_TIMEFRAMES)g_atr_timeframe, 0);
    if(bar_open_time <= 0 || bar_open_time == g_last_bar_open_time)
@@ -68,6 +83,32 @@ void OnTick()
       DrawSignalLine(signal_time);
       SendSignalAlert(signal_time, previous_atr, current_atr);
    }
+}
+
+void UpdateAtrDisplay(const double atr_value)
+{
+   if(!Show_ATR_Display)
+   {
+      ObjectDelete(0, g_display_label_name);
+      return;
+   }
+
+   if(ObjectFind(0, g_display_label_name) < 0)
+   {
+      if(!ObjectCreate(0, g_display_label_name, OBJ_LABEL, 0, 0, 0))
+      {
+         PrintFormat("Failed to create ATR display label. Error: %d", GetLastError());
+         return;
+      }
+   }
+
+   string display_text = StringFormat("ATR(%d): %.5f  Trigger: %.5f", ATR_Period, atr_value, ATR_Trigger);
+   ObjectSetString(0, g_display_label_name, OBJPROP_TEXT, display_text);
+   ObjectSetInteger(0, g_display_label_name, OBJPROP_COLOR, Display_Color);
+   ObjectSetInteger(0, g_display_label_name, OBJPROP_FONTSIZE, Display_Font_Size);
+   ObjectSetInteger(0, g_display_label_name, OBJPROP_CORNER, Display_Corner);
+   ObjectSetInteger(0, g_display_label_name, OBJPROP_XDISTANCE, Display_X_Offset);
+   ObjectSetInteger(0, g_display_label_name, OBJPROP_YDISTANCE, Display_Y_Offset);
 }
 
 void DrawSignalLine(const datetime signal_time)
