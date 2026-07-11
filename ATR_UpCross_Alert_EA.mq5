@@ -53,7 +53,8 @@ void OnTick()
    if(g_atr_handle == INVALID_HANDLE)
       return;
 
-   double live_atr_buffer[1];
+   double live_atr_buffer[];
+   ArrayResize(live_atr_buffer, 1);
    ArraySetAsSeries(live_atr_buffer, true);
    int live_copied = CopyBuffer(g_atr_handle, 0, 0, 1, live_atr_buffer);
    if(live_copied == 1)
@@ -65,7 +66,8 @@ void OnTick()
 
    g_last_bar_open_time = bar_open_time;
 
-   double atr_values[2];
+   double atr_values[];
+   ArrayResize(atr_values, 2);
    ArraySetAsSeries(atr_values, true);
    int copied = CopyBuffer(g_atr_handle, 0, 1, 2, atr_values);
    if(copied != 2)
