@@ -29,6 +29,24 @@ CTrade trade;
 int indicatorHandle = INVALID_HANDLE;
 datetime lastBarTime = 0;
 
+int NormalizeTrendValue(const double value)
+{
+   if(value > 0.5)
+      return(1);
+   if(value < -0.5)
+      return(-1);
+   return(0);
+}
+
+string TrendName(const int trend)
+{
+   if(trend > 0)
+      return("UPTREND");
+   if(trend < 0)
+      return("DOWNTREND");
+   return("NO_TREND");
+}
+
 bool IsNewBar()
 {
    const datetime currentBarTime = iTime(_Symbol, _Period, 0);
@@ -42,22 +60,27 @@ bool IsNewBar()
    return(true);
 }
 
-TrendSignal ReadTrendChangeSignal()
+TrendSignal ReadTrendChangeSignal(int &previousTrend, int &currentTrend)
 {
-   double upSignal[1];
-   double downSignal[1];
+   previousTrend = 0;
+   currentTrend = 0;
 
-   if(CopyBuffer(indicatorHandle, 4, 1, 1, upSignal) <= 0)
-      return(SIGNAL_NONE);
-   if(CopyBuffer(indicatorHandle, 5, 1, 1, downSignal) <= 0)
+   double trendValues[2];
+   // Buffer 6 is TrendStateBuffer from the indicator.
+   // shift 1 = last closed bar, shift 2 = previous closed bar.
+   if(CopyBuffer(indicatorHandle, 6, 1, 2, trendValues) < 2)
       return(SIGNAL_NONE);
 
-   if(upSignal[0] != EMPTY_VALUE)
+   currentTrend = NormalizeTrendValue(trendValues[0]);
+   previousTrend = NormalizeTrendValue(trendValues[1]);
+
+   // Alert/trade only when trend flips between confirmed up/down states.
+   if(currentTrend == previousTrend || currentTrend == 0 || previousTrend == 0)
+      return(SIGNAL_NONE);
+
+   if(currentTrend > previousTrend)
       return(SIGNAL_UP);
-   if(downSignal[0] != EMPTY_VALUE)
-      return(SIGNAL_DOWN);
-
-   return(SIGNAL_NONE);
+   return(SIGNAL_DOWN);
 }
 
 bool HasPosition(const ENUM_POSITION_TYPE positionType)
@@ -183,16 +206,18 @@ void OnTick()
    if(!IsNewBar())
       return;
 
-   const TrendSignal signal = ReadTrendChangeSignal();
+   int previousTrend = 0;
+   int currentTrend = 0;
+   const TrendSignal signal = ReadTrendChangeSignal(previousTrend, currentTrend);
    if(signal == SIGNAL_NONE)
       return;
 
-   const string direction = (signal == SIGNAL_UP ? "UPTREND" : "DOWNTREND");
-   const string message = StringFormat("%s %s %s trend change detected on %s",
+   const string message = StringFormat("%s %s %s trend change detected: %s -> %s",
                                        TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS),
                                        _Symbol,
                                        EnumToString(_Period),
-                                       direction);
+                                       TrendName(previousTrend),
+                                       TrendName(currentTrend));
 
    Print(message);
    if(EnableAlerts)
