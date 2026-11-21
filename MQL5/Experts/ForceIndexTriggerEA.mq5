@@ -111,8 +111,10 @@ void UpdateMonitor(const double currentForceValue)
 
 void CheckTriggerCrossDown()
 {
-   double forceValues[3];
-   datetime barTimes[3];
+   double forceValues[];
+   datetime barTimes[];
+   ArrayResize(forceValues, 3);
+   ArrayResize(barTimes, 3);
    ArraySetAsSeries(forceValues, true);
    ArraySetAsSeries(barTimes, true);
 
